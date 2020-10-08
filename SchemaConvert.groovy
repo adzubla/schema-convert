@@ -36,7 +36,9 @@ spec.components.schemas.each {
 
     findRef(schema, { map, key, value -> map.put('$ref', value.replaceAll('#/components/schemas/', '')) })
 
-    schema['$schema'] = 'http://json-schema.org/schema#'
+    if (!mongoDbCompat) {
+        schema['$schema'] = 'http://json-schema.org/schema#'
+    }
     if (schema['type'] == null) {
         schema['type'] = 'object'
     }
