@@ -21,6 +21,25 @@ def findRef(Map map, doit) {
     }
 }
 
+def deleteExamples(Map map) {
+    Iterator iterator = map.keySet().iterator()
+    while (iterator.hasNext()) {
+        def key = iterator.next()
+        def value = map[key]
+        if (key.equals('example')) {
+            iterator.remove()
+        } else if (value instanceof List) {
+            value.each {
+                if (it instanceof Map) {
+                    deleteExamples(it)
+                }
+            }
+        } else if (value instanceof Map) {
+            deleteExamples(value)
+        }
+    }
+}
+
 
 def inputFile = args[0]
 def mongoDbCompat = (args.length > 1) ? "-m".equals(args[1]) : false
@@ -33,6 +52,8 @@ def spec = new YamlSlurper().parse(new File(inputFile))
 
 spec.components.schemas.each {
     def schema = it.value
+
+    deleteExamples(schema)
 
     findRef(schema, { map, key, value -> map.put('$ref', value.replaceAll('#/components/schemas/', '')) })
 
@@ -64,13 +85,17 @@ schemas.each {
     println "Creating $outputFileName"
     new File(outputFileName).delete()
 
+    def schema = it.value
+    if (mongoDbCompat) {
+        schema = ['$jsonSchema': schema]
+    }
+
     def builder = new JsonBuilder()
-    builder it.value
+    builder schema
 
     def json = builder.toPrettyString()
-
     if (mongoDbCompat) {
-        json = mongoDbConvert(json)
+        json = convertMongoTypes(json)
     }
 
     new File(outputFileName) << json
@@ -78,8 +103,8 @@ schemas.each {
 
 println 'Done'
 
-def mongoDbConvert(text) {
+def convertMongoTypes(text) {
     return text
-            .replaceAll('"type": ', '"bsonType": ')
-            .replaceAll('"bsonType": "integer"', '"bsonType": "int"')
+            .replaceAll('"type": "integer"', '"bsonType": "int"')
+            .replaceAll('"type": "', '"bsonType": "')
 }
